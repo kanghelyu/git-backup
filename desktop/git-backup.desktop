@@ -1,0 +1,13 @@
+# 安装到 ~/.local/share/applications/git-backup.desktop，并把路径改成你的用户名
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Git 备份
+GenericName=GitHub 自动备份
+Comment=查看状态、手动备份、开关自动调度
+Exec=/home/YOUR_USER/.local/share/git-backup/git-backup-panel.py
+Icon=git-backup
+Terminal=false
+Categories=Utility;
+StartupNotify=true
+Keywords=backup;git;github;备份;

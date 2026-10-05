@@ -1,0 +1,12 @@
+{
+  "sources": [
+    {
+      "source": "/home/you/Documents/notes",
+      "destination": "notes"
+    },
+    {
+      "source": "/home/you/projects/my-app/config",
+      "destination": "apps/my-app/config"
+    }
+  ]
+}

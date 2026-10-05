@@ -1,0 +1,6 @@
+# rsync --exclude 语法，每行一条；复制与校验都会用到。
+__pycache__/
+*.pyc
+node_modules/
+*.log
+.cache/

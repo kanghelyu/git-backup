@@ -1,0 +1,15 @@
+# 安装到 ~/.config/systemd/user/git-backup.service
+# Install to: ~/.config/systemd/user/git-backup.service
+
+[Unit]
+Description=Git one-click backup scheduled run
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/share/git-backup/git-backup-run.sh
+TimeoutStartSec=920
+TimeoutStopSec=10
+KillMode=control-group
+Environment=PATH=/usr/bin:/bin
+StandardOutput=journal
+StandardError=journal

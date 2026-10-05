@@ -1,0 +1,9 @@
+{
+  "repo_slug": "yourname/your-backup-repo",
+  "branch": "main",
+  "require_private": true,
+  "budget_seconds": 900,
+  "push_retries": 2,
+  "sources_file": null,
+  "excludes_file": null
+}
