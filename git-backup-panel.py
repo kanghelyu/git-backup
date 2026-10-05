@@ -25,9 +25,58 @@ BASE = os.environ.get("GIT_BACKUP_BASE",
 LOG = os.path.join(BASE, "scheduled-run.log")
 RECEIPT = os.path.join(BASE, "LAST-RUN.md")
 RUN_SCRIPT = os.path.join(BASE, "git-backup-run.sh")
+RUN_PANEL = os.path.abspath(__file__)
 
 TIMER = "git-backup.timer"
 SERVICE = "git-backup.service"
+
+# ------------------------------------------------------------------ 双语 UI
+_LANG_PATH = os.environ.get("GIT_BACKUP_LANG",
+                            os.path.join(BASE, "lang"))
+_LANG = "zh"
+try:
+    _raw = open(_LANG_PATH, encoding="utf-8").read().strip()
+    _LANG = _raw if _raw in ("zh", "en") else "zh"
+except OSError:
+    pass
+
+
+def T(s: str) -> str:
+    return _EN.get(s, s) if _LANG == "en" else s
+
+
+def set_lang(lang: str) -> None:
+    global _LANG
+    _LANG = lang if lang in ("zh", "en") else "zh"
+    try:
+        with open(_LANG_PATH, "w", encoding="utf-8") as fh:
+            fh.write(_LANG)
+    except OSError:
+        pass
+
+
+_EN = {
+    "Git 备份控制面板": "Git Backup Panel",
+    "Git 备份": "Git Backup",
+    "已开启": "ON", "已关闭": "OFF",
+    "● 自动备份：已开启": "● Auto backup: ON",
+    "○ 自动备份：已关闭": "○ Auto backup: OFF",
+    "关闭自动备份": "Disable auto backup",
+    "开启自动备份": "Enable auto backup",
+    "立即备份一次": "Back up now",
+    "刷新状态": "Refresh",
+    "最近一次运行结果": "Last run receipt",
+    "运行日志（末尾）": "Log (tail)",
+    "下次运行": "Next run",
+    "开机自启": "Enabled at boot",
+    "后台常驻(linger)": "Linger",
+    "当前是否正在跑": "Running now",
+    "是": "yes", "否": "no",
+    "(暂无)": "(none yet)", "(空)": "(empty)",
+    "找不到执行脚本": "run script not found",
+    "错误": "error",
+}
+
 
 
 def load_config() -> dict:
@@ -86,18 +135,25 @@ def linger_state() -> str:
 
 def read_tail(path: str, n: int = 12) -> str:
     if not os.path.exists(path):
-        return "(暂无)"
+        return T("(暂无)")
     try:
         with open(path, encoding="utf-8", errors="replace") as fh:
-            return "".join(fh.readlines()[-n:]).strip() or "(空)"
+            return "".join(fh.readlines()[-n:]).strip() or T("(空)")
     except Exception as exc:  # noqa: BLE001
-        return f"(读取失败: {exc})"
+        return f"({T("错误")}: {exc})"
 
 
 class Panel(Gtk.ApplicationWindow):
     def __init__(self, app):
-        super().__init__(application=app, title="Git 备份控制面板")
+        super().__init__(application=app, title=T("Git 备份控制面板"))
         self.set_default_size(620, 560)
+
+        hb = Gtk.HeaderBar()
+        lang_btn = Gtk.Button(label="EN / 中文" if _LANG == "zh" else "中文 / EN")
+        lang_btn.add_css_class("flat")
+        lang_btn.connect("clicked", self.on_toggle_lang)
+        hb.pack_end(lang_btn)
+        self.set_titlebar(hb)
 
         outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
         outer.set_margin_top(18)
@@ -109,7 +165,7 @@ class Panel(Gtk.ApplicationWindow):
         cfg = load_config()
         title = Gtk.Label()
         repo = cfg.get("repo_slug") or "(未配置)"
-        title.set_markup(f"<b><big>Git 备份</big></b>　<span size='small' "
+        title.set_markup(f"<b><big>{T('Git 备份')}</big></b>　<span size='small' "
                          f"alpha='60%'>{repo} · {cfg.get('branch', 'main')}</span>")
         title.set_xalign(0)
         outer.append(title)
@@ -129,18 +185,18 @@ class Panel(Gtk.ApplicationWindow):
         self.btn_toggle.connect("clicked", self.on_toggle)
         btns.append(self.btn_toggle)
 
-        btn_run = Gtk.Button(label="立即备份一次")
+        btn_run = Gtk.Button(label=T("立即备份一次"))
         btn_run.connect("clicked", self.on_run_now)
         btns.append(btn_run)
 
-        btn_refresh = Gtk.Button(label="刷新状态")
+        btn_refresh = Gtk.Button(label=T("刷新状态"))
         btn_refresh.connect("clicked", lambda *_: self.refresh())
         btns.append(btn_refresh)
 
         outer.append(btns)
 
         # --- 最近一次结果 ---
-        outer.append(self.section_label("最近一次运行结果"))
+        outer.append(self.section_label(T("最近一次运行结果")))
         self.receipt_view = Gtk.TextView()
         self.receipt_view.set_editable(False)
         self.receipt_view.set_monospace(True)
@@ -148,7 +204,7 @@ class Panel(Gtk.ApplicationWindow):
         outer.append(self.scrolled(self.receipt_view, 190))
 
         # --- 日志尾部 ---
-        outer.append(self.section_label("运行日志（末尾）"))
+        outer.append(self.section_label(T("运行日志（末尾）")))
         self.log_view = Gtk.TextView()
         self.log_view.set_editable(False)
         self.log_view.set_monospace(True)
@@ -180,23 +236,29 @@ class Panel(Gtk.ApplicationWindow):
         st = state()
 
         if st["active"] == "active":
-            status = "● 自动备份：已开启"
+            status = T("● 自动备份：已开启")
         else:
-            status = "○ 自动备份：已关闭"
+            status = T("○ 自动备份：已关闭")
 
         self.btn_toggle.set_label(
-            "关闭自动备份" if st["active"] == "active" else "开启自动备份"
+            T("关闭自动备份") if st["active"] == "active" else T("开启自动备份")
         )
 
+        yesno = lambda v: T("是") if v == "active" else T("否")
         self.status_label.set_markup(
             f"{status}\n"
-            f"下次运行：{st['next']}\n"
-            f"开机自启：{st['enabled']}　后台常驻(linger)：{st['linger']}\n"
-            f"当前是否正在跑：{'是' if st['running'] == 'active' else '否'}"
+            f"{T('下次运行')}：{st['next']}\n"
+            f"{T('开机自启')}：{st['enabled']}　{T('后台常驻(linger)')}：{st['linger']}\n"
+            f"{T('当前是否正在跑')}：{yesno(st['running'])}"
         )
 
         self.set_text(self.receipt_view, read_tail(RECEIPT, 14))
         self.set_text(self.log_view, read_tail(LOG, 12))
+
+    def on_toggle_lang(self, _btn) -> None:
+        set_lang("en" if _LANG == "zh" else "zh")
+        self.get_root().close()          # 重启面板以应用语言（状态无副作用）
+        subprocess.Popen([sys.executable, RUN_PANEL])
 
     def on_toggle(self, _btn) -> None:
         st = state()
@@ -236,7 +298,7 @@ class PanelApp(Gtk.Application):
 
 def main() -> int:
     if not os.path.exists(RUN_SCRIPT):
-        print(f"找不到执行脚本：{RUN_SCRIPT}", file=sys.stderr)
+        print(f"{T('找不到执行脚本')}：{RUN_SCRIPT}", file=sys.stderr)
         return 1
     return PanelApp().run([])
 
